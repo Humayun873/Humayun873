@@ -1,8 +1,15 @@
 import requests
 import json
+import re
 from bs4 import BeautifulSoup
 from urllib.parse import urljoin
 from datetime import datetime
+
+# Function to clean text by lowering it and removing special characters
+def clean_text(text):
+    text = text.lower()
+    text = re.sub(r'[^a-z0-9\s]', '', text)
+    return text
 
 # Function to extract metadata (title, keywords, description, etc.) from a webpage
 def extract_metadata(url):
@@ -12,13 +19,13 @@ def extract_metadata(url):
         metadata = {}
         # Extract title
         title_tag = soup.find("title")
-        metadata["Title"] = title_tag.text.strip() if title_tag else None
+        metadata["Title"] = clean_text(title_tag.text.strip()) if title_tag else None
         # Extract keywords
         keywords_tag = soup.find("meta", {"name": "keywords"})
-        metadata["Keywords"] = keywords_tag.get("content").strip() if keywords_tag else None
+        metadata["Keywords"] = clean_text(keywords_tag.get("content").strip()) if keywords_tag else None
         # Extract description
         description_tag = soup.find("meta", {"name": "description"})
-        metadata["Description"] = description_tag.get("content").strip() if description_tag else None
+        metadata["Description"] = clean_text(description_tag.get("content").strip()) if description_tag else None
         # Include article URL
         metadata["URL"] = url
         # Include current time as created and updated time
