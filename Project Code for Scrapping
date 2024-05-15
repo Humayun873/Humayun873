@@ -1,0 +1,115 @@
+import requests
+import json
+from bs4 import BeautifulSoup
+from urllib.parse import urljoin
+from datetime import datetime
+
+# Function to extract metadata (title, keywords, description, etc.) from a webpage
+def extract_metadata(url):
+    response = requests.get(url)
+    if response.status_code == 200:
+        soup = BeautifulSoup(response.content, "html.parser")
+        metadata = {}
+        # Extract title
+        title_tag = soup.find("title")
+        metadata["Title"] = title_tag.text.strip() if title_tag else None
+        # Extract keywords
+        keywords_tag = soup.find("meta", {"name": "keywords"})
+        metadata["Keywords"] = keywords_tag.get("content").strip() if keywords_tag else None
+        # Extract description
+        description_tag = soup.find("meta", {"name": "description"})
+        metadata["Description"] = description_tag.get("content").strip() if description_tag else None
+        # Include article URL
+        metadata["URL"] = url
+        # Include current time as created and updated time
+        now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        metadata["Created_at"] = now
+        metadata["Updated_at"] = now
+        return metadata
+    else:
+        print("Failed to extract metadata from:", url)
+        return None
+
+# Function to extract links to news articles from a webpage
+def extract_news_links(url):
+    response = requests.get(url)
+    if response.status_code == 200:
+        soup = BeautifulSoup(response.content, "html.parser")
+        # Extract links to news articles
+        news_links = []
+        for link in soup.find_all("a", href=True):
+            href = link["href"]
+            if href.startswith("/"):
+                full_url = urljoin(url, href)
+                news_links.append(full_url)
+        return news_links[:10]  # Return top 10 news articles
+    else:
+        print("Failed to extract links from:", url)
+        return []
+
+# Function to crawl a category page and extract metadata from articles
+def crawl_category(category_url, category_name):
+    category_data = {
+        "Name": category_name,
+        "URL": category_url,
+        "Created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "Updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "Articles": []
+    }
+    # Extract links to articles
+    article_links = extract_news_links(category_url)
+    for article_link in article_links:
+        article_metadata = extract_metadata(article_link)
+        if article_metadata:
+            category_data["Articles"].append(article_metadata)
+    return category_data
+
+# Base URL of the website
+base_url = "https://edition.cnn.com/"  # Replace this with the actual base URL of the website
+
+# List of categories (URLs) to crawl
+category_urls = [
+    (urljoin(base_url, "/politics"), "Politics"),
+    (urljoin(base_url, "/entertainment"), "Entertainment")
+]
+
+# List to store extracted data
+data = {
+    "Categories": [],
+    "News": [],
+    "FactTable": []
+}
+
+# Crawl each category and extract metadata from articles
+for category_url, category_name in category_urls:
+    category_data = crawl_category(category_url, category_name)
+    data["Categories"].append({
+        "Name": category_name,
+        "URL": category_url
+    })
+    for article in category_data["Articles"]:
+        news_id = len(data["News"]) + 1
+        data["News"].append({
+            "Name": article["Title"],
+            "URL": article["URL"],
+            "Created_at": article["Created_at"],
+            "Updated_at": article["Updated_at"]
+        })
+        data["FactTable"].append({
+            "News_id": news_id,
+            "Category_id": category_urls.index((category_url, category_name)) + 1,
+            "Country_id": 1,  # Example country ID, you can change as needed
+            "News_Text": article["Description"],
+            "Title": article["Title"],
+            "Created_at": article["Created_at"],
+            "Updated_at": article["Updated_at"]
+        })
+
+# Save data to JSON file
+timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+json_file = f"news_metadata_{timestamp}.json"
+
+with open(json_file, "w") as file:
+    json.dump(data, file, indent=4)
+
+print("Data saved to:", json_file)
